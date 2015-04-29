@@ -27,13 +27,13 @@ tandem repeat region).
 
 ## VNTR locii
 
-Locus | Flanking Length | Amplicon length | Repeat length | Repeat No | Code | Variability
-------|-----------------|-----------------|---------------|-----------|------|------------
-STTR9 | 144 | 162 | 9 | 2 | 3 | Low
-STTR5 | 175 | 247 | 6 | 12 | 13 | Medium
-STTR6 | 264 | 318 | 6 | 9 | 10 | High
-STTR10pl | 311 | 377 | 6 | 11 | 12 | High
-STTR3 | 106 | 523 | 27/33 | 2+11 | 523 | Low
+Locus | Flanking Length | Amplicon length | Repeat Unit | Repeat length | Repeat No | Code | Variability
+------|-----------------|-----------------|-------------|---------------|-----------|------|------------
+STTR9 | 144 | 162 | TGCGATGTC | 9 | 2 | 3 | Low
+STTR5 | 175 | 247 | CACGAC | 6 | 12 | 13 | Medium
+STTR6 | 264 | 318 | GCAAGG | 6 | 9 | 10 | High
+STTR10pl | 311 | 377 | CTGTTC | 6 | 11 | 12 | High
+STTR3 | 106 | 523 | CCGCCCGACGATGGCGGCAACGTCACC/CCGCCCGACGATGGCGGCGATGACAATGTGACC | 27/33 | 2+11 | 523 | Low
 
 ## References
 
