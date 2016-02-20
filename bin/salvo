@@ -1,0 +1,189 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use Time::Piece;
+#use List::Util qw(max);
+use Data::Dumper;
+use FindBin;
+
+# . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 
+# global variables
+
+my $EXE = $FindBin::RealScript;
+my $VERSION = "0.1";
+my $DESC = "Salmonella MLVA typing from WGS";
+my $AUTHOR = 'Torsten Seemann <torsten.seemann@gmail.com>';
+my $URL = 'https://github.com/MDU-PHL/salvo';
+
+# . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 
+# command line options
+
+my(@Options, $quiet, $threads, $debug);
+setOptions();
+
+# . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 
+#    NAME      FLANK AMPLICON  REPEAT UNIT    RPT     RPT    "CODE"    VARIABILITY
+#               LEN     LEN                   LEN     NUM
+
+my @RPT = (
+  [ qw(STTR9	144	162	TGCGATGTC	9	2	3	Low) ],
+  [ qw(STTR5	175	247	CACGAC		6	12	13	Medium) ],
+  [ qw(STTR6	264	318	GCAAGG		6	9	10	High) ],
+  [ qw(STTR10pl	311	377	CTGTTC		6	11	12	High) ],
+  [ qw(STTR3	106	523     CCGCCCGACGATGGCGGCAACGTCACC|CCGCCCGACGATGGCGGCGATGACAATGTGACC	27/33	2 523 Low) ],
+);
+print Dumper(\@RPT) if $debug;
+
+# . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 
+# check all is well
+
+msg("This is $EXE $VERSION");
+msg("Written by $AUTHOR");
+msg("Obtained from $URL");
+
+$threads > 0 or err("Invalid --threads $threads");
+msg("Will use $threads threads");
+
+# . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 
+# set up the regexps
+
+my @regexp;
+for my $rpt (@RPT) {
+  push @regexp, [ $rpt->[0], qr/(($rpt->[3]){2,})/i ];
+  my $rc = revcom($rpt->[3]);
+  push @regexp, [ $rpt->[0], qr/(($rc){2,})/i ];
+}
+print Dumper(\@regexp) if $debug;
+
+# . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 
+# scan the reads
+
+my %count;
+
+for my $file (@ARGV) {
+  msg("Opening: $file");
+  open my $fastq, '-|', "gunzip -c -d -f \Q$file\E | sed -n 'n;p;n;n'";
+  READ:
+  while (my $dna = <$fastq>) {
+    for my $re (@regexp) {
+      if ($dna =~ $re->[1]) {
+        my $n = int( length($1) / length($2) );
+        msg("$. $re->[0] $n $2");
+        $count{ $re->[0] }{ $n }++;
+        next READ; 
+      }
+    }
+  }
+  close $fastq;
+}
+
+# . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 
+# interpret the results
+
+print Dumper(\%count);
+
+#----------------------------------------------------------------------
+
+sub revcom {
+  my($dna) = @_;
+  $dna =~ tr/ATGCatgc/TACGtacg/;
+  $dna = reverse($dna);
+  return $dna;
+}
+
+
+#----------------------------------------------------------------------
+
+sub msg {
+  return if $quiet;
+  my $t = localtime;
+  my $line = "[".$t->hms."] @_\n";
+  print STDERR $line;
+}
+
+#----------------------------------------------------------------------
+
+sub err {
+  $quiet=0;
+  msg(@_);
+  exit(2);
+}
+
+#----------------------------------------------------------------------
+
+sub version {
+  print STDERR "$EXE $VERSION\n";
+  exit;
+}
+
+#----------------------------------------------------------------------
+
+sub show_citation {
+  print STDERR << "EOCITE";
+  
+If you use Salvo in your work, please cite:
+
+    Seemann T (2016)
+    $EXE $VERSION : $DESC
+    $URL
+    
+Thank you.
+
+EOCITE
+
+  exit;
+}
+
+#----------------------------------------------------------------------
+# Option setting routines
+
+sub setOptions {
+  use Getopt::Long;
+
+  @Options = (
+    'Options:',
+    {OPT=>"help",    VAR=>\&usage,             DESC=>"This help"},
+    {OPT=>"version", VAR=>\&version,           DESC=>"Print version and exit"},
+    {OPT=>"citation",VAR=>\&show_citation,     DESC=>"Print citation for referencing $EXE"},
+    {OPT=>"debug!",  VAR=>\$debug, DEFAULT=>0, DESC=>"Show debugging information"},
+    {OPT=>"quiet!",  VAR=>\$quiet, DEFAULT=>0, DESC=>"No screen output"},
+    {OPT=>"threads=i",  VAR=>\$threads, DEFAULT=>8,  DESC=>"Number of threads/cores/CPUs to use"},
+  );
+
+  (!@ARGV) && (usage());
+
+  &GetOptions(map {$_->{OPT}, $_->{VAR}} grep { ref } @Options) || usage();
+
+  # Now setup default values.
+  foreach (@Options) {
+    if (ref $_ && defined($_->{DEFAULT}) && !defined(${$_->{VAR}})) {
+      ${$_->{VAR}} = $_->{DEFAULT};
+    }
+  }
+}
+
+#----------------------------------------------------------------------
+
+sub usage {
+  print STDERR "Synopsis:\n  $EXE $VERSION - $DESC\n";
+  print STDERR "Author:\n  $AUTHOR\n";
+  print STDERR "Usage:\n  $EXE [options] <reads.fastq[.gz]>\n";
+  foreach (@Options) {
+    if (ref) {
+      my $def = defined($_->{DEFAULT}) ? " (default '$_->{DEFAULT}')" : "";
+      $def = ($def ? ' (default OFF)' : '(default ON)') if $_->{OPT} =~ m/!$/;
+      my $opt = $_->{OPT};
+      $opt =~ s/!$//; 
+      $opt =~ s/=s$/ [X]/; 
+      $opt =~ s/=i$/ [N]/;
+      $opt =~ s/=f$/ [n.n]/;
+      printf STDERR "  --%-15s %s%s\n", $opt, $_->{DESC}, $def;
+    }
+    else {
+      print STDERR "$_\n";
+    }      
+  }
+  exit(1);
+}
+
+#----------------------------------------------------------------------
